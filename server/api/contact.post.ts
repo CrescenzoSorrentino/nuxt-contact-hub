@@ -105,6 +105,9 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // Persist the lead before sending any email, so a submission is always
+  // stored even when email is disabled or fails. "id" and "created_at" are
+  // filled in automatically by the database.
   const supabase = serverSupabase();
 
   const { error: dbError } = await supabase.from("leads").insert({
@@ -122,6 +125,8 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // Email is optional: if Resend is not configured, saving the lead is enough,
+  // so we return successfully without attempting to send anything.
   if (!config.resendApiKey) {
     return {
       ok: true,

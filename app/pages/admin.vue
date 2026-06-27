@@ -1,12 +1,23 @@
 <script setup lang="ts">
+/**
+ * Admin page (/admin).
+ *
+ * Shows a password login form when logged out, and the list of leads when
+ * logged in. The session state (`loggedIn`) drives which view is rendered, so
+ * logging in or out automatically swaps the UI.
+ */
 const { loggedIn, fetch: refreshSession, clear } = useUserSession();
 
 const password = ref("");
 const errorMsg = ref("");
+
+// Load the leads lazily (immediate: false): the endpoint requires a session,
+// so we only fetch after we know the user is logged in.
 const { data: leads, refresh: refreshLeads } = await useFetch("/api/leads", {
   immediate: false,
 });
 
+// Already logged in (e.g. after a page reload with a valid cookie): load now.
 if (loggedIn.value) {
   await refreshLeads();
 }
