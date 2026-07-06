@@ -51,11 +51,19 @@ function formatDate(iso: string) {
     minute: "2-digit",
   });
 }
+
+async function toggleHandled(id: number, current: boolean) {
+  await $fetch(`/api/leads/${id}`, {
+    method: "PATCH",
+    body: { handled: !current },
+  });
+  await refreshLeads();
+}
 </script>
 
 <template>
   <div v-if="!loggedIn" class="auth">
-    <h1>Login admin</h1>
+    <h1>Admin login</h1>
     <form class="login-form" @submit.prevent="login">
       <input v-model="password" type="password" placeholder="Password" />
       <button type="submit">Login</button>
@@ -65,22 +73,33 @@ function formatDate(iso: string) {
 
   <div v-else class="admin">
     <header class="admin-header">
-      <h1>Area admin</h1>
-      <button class="ghost" @click="logout">Esci</button>
+      <h1>Admin area</h1>
+      <button class="ghost" @click="logout">Log out</button>
     </header>
 
     <p v-if="!leads || leads.length === 0" class="empty">
-      Nessun lead per ora.
+      No leads to display.
     </p>
 
     <ul class="leads">
-      <li v-for="lead in leads" :key="lead.id" class="lead">
+      <li
+        v-for="lead in leads"
+        :key="lead.id"
+        class="lead"
+        :class="{ 'is-handled': lead.handled }"
+      >
         <div class="lead-top">
-          <span class="lead-name">{{ lead.name }}</span>
+          <span class="lead-name">
+            <Icon v-if="lead.handled" name="lucide:check" class="lead-check" />
+            {{ lead.name }}
+          </span>
           <time class="lead-date">{{ formatDate(lead.created_at) }}</time>
         </div>
         <a class="lead-email" :href="`mailto:${lead.email}`">{{ lead.email }}</a>
         <p class="lead-message">{{ lead.message }}</p>
+        <button class="toggle" @click="toggleHandled(lead.id, lead.handled)">
+          {{ lead.handled ? "Mark as to-do" : "Mark as handled" }}
+        </button>
       </li>
     </ul>
   </div>
@@ -133,25 +152,48 @@ button.ghost {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 1.5rem;
 }
 
 .empty {
   color: #6b7280;
 }
 
+/* Spacing between cards. */
 .leads {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.1rem;
 }
 
+/* Plain card, with consistent internal spacing (gap) so nothing looks
+   thrown together. */
 .lead {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 0.75rem 1rem;
+  padding: 1.1rem 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Handled leads recede slightly and get a green check before the name. */
+.lead.is-handled {
+  background: #fafafa;
+}
+
+.lead.is-handled .lead-name {
+  color: #6b7280;
+}
+
+.lead-check {
+  color: #16a34a;
+  font-size: 1.1em;
+  vertical-align: -0.15em;
+  margin-right: 0.25rem;
 }
 
 .lead-top {
@@ -178,8 +220,25 @@ button.ghost {
 }
 
 .lead-message {
-  margin: 0.5rem 0 0;
-  white-space: pre-wrap;
+  margin: 0;
   color: #374151;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.toggle {
+  align-self: flex-end;
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: #2563eb;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: #f3f4f6;
 }
 </style>
