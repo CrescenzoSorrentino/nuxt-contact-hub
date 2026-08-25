@@ -1,26 +1,26 @@
 /**
- * Server-only Supabase client, created with the SECRET service_role key.
+ * Client Supabase solo lato server, creato con la chiave SEGRETA service_role.
  *
- * The service_role key bypasses Row Level Security, so this module must never
- * be imported into client code. It lives in `server/utils`, which Nitro
- * auto-imports across the server, so any endpoint can call `serverSupabase()`
- * without an explicit import.
+ * La chiave service_role bypassa la Row Level Security, quindi questo modulo
+ * non va MAI importato nel codice client. Vive in `server/utils`, che Nitro
+ * auto-importa su tutto il server, quindi ogni endpoint può chiamare
+ * `serverSupabase()` senza un import esplicito.
  *
- * Credentials come from runtimeConfig (see nuxt.config.ts and .env.example).
+ * Le credenziali arrivano da runtimeConfig (vedi nuxt.config.ts e .env.example).
  */
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import WebSocket from "ws";
 
-// supabase-js eagerly sets up a Realtime (WebSocket) client even though we only
-// use the database. Node 20 has no global WebSocket, so we provide one from the
-// "ws" package. Node 22+ ships WebSocket natively and skips this block.
+// supabase-js configura sempre un client Realtime (WebSocket) anche se qui
+// usiamo solo il database. Node 20 non ha un WebSocket globale, quindi ne
+// forniamo uno dal pacchetto "ws". Node 22+ ha WebSocket nativo e salta questo blocco.
 if (!globalThis.WebSocket) {
   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
 }
 
-// Single shared client (singleton): created on first use and reused afterwards,
-// so we don't open a new connection on every request.
+// Client unico condiviso (singleton): creato al primo utilizzo e riusato dopo,
+// così non apriamo una nuova connessione a ogni richiesta.
 let client: SupabaseClient | null = null;
 
 export function serverSupabase(): SupabaseClient {
@@ -30,16 +30,16 @@ export function serverSupabase(): SupabaseClient {
   const url = config.supabaseUrl;
   const key = config.supabaseServiceRoleKey;
 
-  // Fail fast with a clear message if the env vars are missing, instead of a
-  // cryptic error later when the first query runs.
+  // Fallisce subito con un messaggio chiaro se mancano le variabili d'ambiente,
+  // invece di un errore criptico più tardi alla prima query.
   if (!url || !key) {
     throw new Error(
       "Supabase URL or service role key is not set in runtime config.",
     );
   }
 
-  // persistSession: false because there is no logged-in user to remember on the
-  // server; every call authenticates with the service_role key.
+  // persistSession: false perché sul server non c'è un utente loggato da
+  // ricordare; ogni chiamata si autentica con la chiave service_role.
   client = createClient(url, key, {
     auth: { persistSession: false },
   });

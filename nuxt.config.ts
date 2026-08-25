@@ -14,5 +14,6 @@ export default defineNuxtConfig({
     supabaseUrl: "",
     supabaseServiceRoleKey: "",
     adminPassword: "",
+    anthropicApiKey: "",
   },
 });

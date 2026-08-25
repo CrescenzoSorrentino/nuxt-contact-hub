@@ -1,22 +1,22 @@
 /**
- * Shared validation rules for the contact form.
+ * Regole di validazione condivise per il form di contatto.
  *
- * This file is the single source of truth, imported by BOTH the client
- * component (for instant user feedback) and the server endpoint (for the
- * security re-validation). Keeping the rules here means the two sides can
- * never drift out of sync.
+ * Questo file è l'unica fonte di verità, importato SIA dal componente client
+ * (per un feedback immediato all'utente) SIA dall'endpoint server (per la
+ * ri-validazione di sicurezza). Tenere le regole qui significa che i due lati
+ * non possono mai disallinearsi.
  *
- * In Nuxt it is available through the `#shared` alias:
+ * In Nuxt è disponibile tramite l'alias `#shared`:
  *   import { FIELD_LIMITS, EMAIL_REGEX } from '#shared/contact-form'
  *
- * Note: these are RULES only. The destination email address is
- * configuration and lives elsewhere (a prop on the client, an environment
- * variable on the server).
+ * Nota: queste sono solo REGOLE. L'indirizzo email di destinazione è
+ * configurazione e vive altrove (una prop sul client, una variabile
+ * d'ambiente sul server).
  */
 
 /**
- * Maximum allowed length per field, in characters.
- * Used on both sides to reject oversized payloads and keep the limits aligned.
+ * Lunghezza massima consentita per campo, in caratteri.
+ * Usata su entrambi i lati per rifiutare payload troppo grandi e tenere i limiti allineati.
  */
 export const FIELD_LIMITS = {
   name: 100,
@@ -25,17 +25,18 @@ export const FIELD_LIMITS = {
 } as const
 
 /**
- * Email validation regex.
+ * Regex di validazione email.
  *
- * Intentionally pragmatic, not a full RFC 5322 implementation: it checks the
- * "something@something.something" shape with no spaces, which catches the most
- * common typos. The only truly reliable check is sending an actual email.
+ * Volutamente pragmatica, non un'implementazione completa dell'RFC 5322:
+ * controlla la forma "qualcosa@qualcosa.qualcosa" senza spazi, che intercetta
+ * i refusi più comuni. L'unico controllo davvero affidabile è inviare
+ * un'email vera.
  */
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
- * Shape of the contact form data, reused on the client and the server so the
- * data structure is described in one place.
+ * Forma dei dati del form di contatto, riusata sul client e sul server così
+ * la struttura dati è descritta in un unico posto.
  */
 export interface ContactFormData {
   name: string

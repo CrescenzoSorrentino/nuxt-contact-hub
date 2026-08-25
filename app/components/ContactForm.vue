@@ -2,12 +2,13 @@
 /**
  * ContactForm
  *
- * Accessible, self-contained contact form: client-side validation, an
- * anti-spam honeypot, a character counter and submit/reset state handling.
- * It posts to the /api/contact endpoint and shows a success or error message.
+ * Form di contatto accessibile e autonomo: validazione lato client, un
+ * honeypot anti-spam, un contatore di caratteri e gestione dello stato di
+ * invio/reset. Invia i dati all'endpoint /api/contact e mostra un messaggio
+ * di successo o di errore.
  *
- * Styling is driven by CSS custom properties (see the <style> block) so it can
- * be themed without editing this file.
+ * Lo stile è guidato da custom properties CSS (vedi il blocco <style>), così
+ * si può cambiare tema senza modificare questo file.
  */
 import { EMAIL_REGEX, FIELD_LIMITS } from "#shared/contact-form";
 
@@ -75,8 +76,8 @@ function validate() {
   return errors.name === "" && errors.email === "" && errors.message === "";
 }
 
-// Address shown in the error message ("write to us directly at ...").
-// Replace it with your own contact email.
+// Indirizzo mostrato nel messaggio di errore ("scrivici direttamente a ...").
+// Sostituiscilo con la tua email di contatto.
 const contactEmail = "you@example.com";
 
 function resetForm() {
@@ -93,7 +94,7 @@ function resetForm() {
 
 <template>
   <form class="contact-form" @submit.prevent="handleSubmit">
-    <!-- Anti-spam honeypot: hidden from humans, often filled in by bots -->
+    <!-- Honeypot anti-spam: nascosto agli umani, spesso compilato dai bot -->
     <div class="honeypot" aria-hidden="true">
       <label for="company">Company</label>
       <input
@@ -216,7 +217,7 @@ function resetForm() {
 
 <style scoped>
 .contact-form {
-  /* === Customizable variables: override these from your own CSS === */
+  /* === Variabili personalizzabili: sovrascrivile dal tuo CSS === */
   --cf-font: inherit;
   --cf-color-text: #1a1a1a;
   --cf-color-label: #333333;
@@ -229,7 +230,7 @@ function resetForm() {
   --cf-radius: 6px;
   --cf-max-width: 32rem;
 
-  /* === Base layout === */
+  /* === Layout di base === */
   display: flex;
   flex-direction: column;
   gap: var(--cf-spacing);
@@ -338,7 +339,7 @@ function resetForm() {
   color: #b71c1c;
 }
 
-/* Honeypot: moved off-screen (NOT display:none, which some bots skip) */
+/* Honeypot: spostato fuori schermo (NON display:none, che alcuni bot ignorano) */
 .honeypot {
   position: absolute;
   left: -5000px;

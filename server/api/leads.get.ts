@@ -1,13 +1,13 @@
 /**
  * GET /api/leads
  *
- * Returns every stored lead, newest first, for the admin area.
+ * Restituisce tutti i lead salvati, dal più recente, per l'area admin.
  *
- * Protected: requireUserSession throws a 401 when the request has no valid
- * admin session, so the leads are never exposed without logging in first.
+ * Protetto: requireUserSession lancia un 401 se la richiesta non ha una
+ * sessione admin valida, quindi i lead non sono mai esposti senza login.
  */
 export default defineEventHandler(async (event) => {
-  // Gate the endpoint before touching the database.
+  // Blocca l'endpoint prima di toccare il database.
   await requireUserSession(event);
 
   const supabase = serverSupabase();

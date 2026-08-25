@@ -4,10 +4,11 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
 /**
- * Escapes the HTML-special characters in a string so user input can be safely
- * embedded in the HTML email body (prevents HTML/markup injection).
- * The "&" replacement must run first, otherwise it would double-escape the
- * entities produced by the other replacements.
+ * Fa l'escape dei caratteri speciali HTML in una stringa, così l'input
+ * dell'utente può essere inserito in sicurezza nel corpo HTML dell'email
+ * (previene l'injection di HTML/markup).
+ * La sostituzione di "&" deve girare per prima, altrimenti farebbe il doppio
+ * escape delle entità prodotte dalle altre sostituzioni.
  */
 function escapeHtml(str: string): string {
   return str
@@ -21,28 +22,28 @@ function escapeHtml(str: string): string {
 /**
  * POST /api/contact
  *
- * Receives the contact form submission and runs it through a series of gates:
- * honeypot -> rate limit -> validation -> send email. A request only sends an
- * email if it passes every gate. Credentials are read from runtimeConfig
- * (see nuxt.config.ts and .env.example).
+ * Riceve l'invio del form di contatto e lo fa passare attraverso una serie di
+ * controlli: honeypot -> rate limit -> validazione -> invio email. Una
+ * richiesta invia un'email solo se supera ogni controllo. Le credenziali
+ * vengono lette da runtimeConfig (vedi nuxt.config.ts e .env.example).
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
 
-  // Honeypot: bots tend to fill every field, including the hidden "company"
-  // one. If it is filled, pretend success without sending, so the bot does not
-  // learn it was rejected.
+  // Honeypot: i bot tendono a compilare ogni campo, incluso quello nascosto
+  // "company". Se è compilato, fingiamo un successo senza inviare, così il
+  // bot non impara che è stato rifiutato.
   if (body.company) {
     return { ok: true };
   }
 
   const config = useRuntimeConfig(event);
 
-  // Rate limiting (fail-open): allow at most 5 requests per hour per IP.
-  // The Redis call is wrapped in try/catch so that if Redis is unreachable we
-  // let the request through rather than breaking the form. The actual "429"
-  // is thrown OUTSIDE the try/catch, so a genuine "limit exceeded" is never
-  // swallowed by the catch.
+  // Rate limiting (fail-open): al massimo 5 richieste all'ora per IP.
+  // La chiamata a Redis è dentro un try/catch così se Redis è irraggiungibile
+  // lasciamo passare la richiesta invece di rompere il form. Il vero "429"
+  // viene lanciato FUORI dal try/catch, così un "limite superato" vero non
+  // viene mai inghiottito dal catch.
   let limitExceeded = false;
   try {
     const redis = new Redis({
@@ -57,7 +58,7 @@ export default defineEventHandler(async (event) => {
     const { success } = await ratelimit.limit(ip);
     limitExceeded = !success;
   } catch (e) {
-    // Redis unreachable -> fail open: do not block the request.
+    // Redis irraggiungibile -> fail open: non blocchiamo la richiesta.
     console.error("Rate limiting unavailable (failing open):", e);
   }
 
@@ -68,9 +69,10 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Server-side re-validation. The client already validates, but client checks
-  // are not a security guarantee, so we re-check everything here using the same
-  // shared rules. "!body.x" also guards against missing fields (undefined).
+  // Ri-validazione lato server. Il client valida già, ma i controlli client
+  // non sono una garanzia di sicurezza, quindi ricontrolliamo tutto qui
+  // usando le stesse regole condivise. "!body.x" protegge anche dai campi
+  // mancanti (undefined).
   if (
     !body.name ||
     body.name.trim() === "" ||
@@ -105,9 +107,9 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Persist the lead before sending any email, so a submission is always
-  // stored even when email is disabled or fails. "id" and "created_at" are
-  // filled in automatically by the database.
+  // Salva il lead prima di inviare qualsiasi email, così un invio viene
+  // sempre memorizzato anche quando l'email è disattivata o fallisce. "id" e
+  // "created_at" vengono compilati automaticamente dal database.
   const supabase = serverSupabase();
 
   const { error: dbError } = await supabase.from("leads").insert({
@@ -125,17 +127,17 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Email is optional: if Resend is not configured, saving the lead is enough,
-  // so we return successfully without attempting to send anything.
+  // L'email è opzionale: se Resend non è configurato, basta aver salvato il
+  // lead, quindi restituiamo successo senza provare a inviare nulla.
   if (!config.resendApiKey) {
     return {
       ok: true,
     };
   }
   
-  // Send the email. Every user-provided value is escaped before being placed
-  // in the HTML body. "replyTo" is set to the visitor's address so you can
-  // reply to them directly with one click.
+  // Invia l'email. Ogni valore fornito dall'utente viene sottoposto a escape
+  // prima di essere inserito nel corpo HTML. "replyTo" è impostato
+  // sull'indirizzo del visitatore così puoi rispondergli con un click.
   const resend = new Resend(config.resendApiKey);
 
   const html = `
@@ -146,8 +148,8 @@ export default defineEventHandler(async (event) => {
     <p>${escapeHtml(body.message)}</p>
   `;
 
-  // The Resend SDK returns an { data, error } object instead of throwing, so
-  // we check "error" ourselves and surface a 500 on failure.
+  // L'SDK di Resend restituisce un oggetto { data, error } invece di lanciare
+  // un'eccezione, quindi controlliamo "error" noi stessi e mostriamo un 500 in caso di fallimento.
   const { error } = await resend.emails.send({
     from: config.contactFromEmail,
     to: config.contactRecipientEmail,
@@ -163,9 +165,10 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Optional confirmation email to the visitor (off by default).
-  // It is a "nice to have": if it fails we only log it, we do NOT fail the
-  // request, because the main email to you already succeeded.
+  // Email di conferma opzionale per il visitatore (disattivata di default).
+  // È un "sarebbe carino averla": se fallisce ci limitiamo a loggarla, NON
+  // facciamo fallire la richiesta, perché l'email principale verso di te è
+  // già andata a buon fine.
   if (config.contactSendConfirmation) {
     const { error: confirmationError } = await resend.emails.send({
       from: config.contactFromEmail,
