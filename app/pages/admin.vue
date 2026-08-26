@@ -18,6 +18,22 @@ const { data: leads, refresh: refreshLeads } = await useFetch("/api/leads", {
   immediate: false,
 });
 
+const view = ref<"new" | "archived">("new");
+const categoryFilter = ref("all");
+const priorityFilter = ref("all");
+
+const filterLeads = computed(
+  () =>
+    leads.value?.filter(
+      (lead) =>
+        (view.value === "new" ? !lead.handled : lead.handled) &&
+        (categoryFilter.value === "all" ||
+          lead.category === categoryFilter.value) &&
+        (priorityFilter.value === "all" ||
+          lead.priority === priorityFilter.value),
+    ) ?? [],
+);
+
 // Già loggato (es. dopo un ricaricamento della pagina con un cookie valido): carica subito.
 if (loggedIn.value) {
   await refreshLeads();
@@ -78,25 +94,61 @@ async function toggleHandled(id: number, current: boolean) {
       <button class="ghost" @click="logout">Log out</button>
     </header>
 
-    <p v-if="!leads || leads.length === 0" class="empty">
+    <div class="filter-bar">
+      <div class="view-tabs">
+        <button
+          class="tab"
+          :class="{ 'tab-active': view === 'new' }"
+          @click="view = 'new'"
+        >
+          New {{ leads?.filter((l) => !l.handled).length ?? 0 }}
+        </button>
+        <button
+          class="tab"
+          :class="{ 'tab-active': view === 'archived' }"
+          @click="view = 'archived'"
+        >
+          Archived {{ leads?.filter((l) => l.handled).length ?? 0 }}
+        </button>
+      </div>
+
+      <div class="filter-selects">
+        <select v-model="categoryFilter">
+          <option value="all">All categories</option>
+          <option value="commercial">Commercial</option>
+          <option value="support">Support</option>
+          <option value="spam">Spam</option>
+          <option value="collaboration">Collaboration</option>
+          <option value="other">Other</option>
+        </select>
+        <select v-model="priorityFilter">
+          <option value="all">All priorities</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+    </div>
+
+    <p v-if="!filterLeads || filterLeads.length === 0" class="empty">
       No leads to display.
     </p>
 
     <ul class="leads">
-      <li
-        v-for="lead in leads"
-        :key="lead.id"
-        class="lead"
-        :class="{ 'is-handled': lead.handled }"
-      >
+      <li v-for="lead in filterLeads" :key="lead.id" class="lead">
         <div class="lead-top">
-          <span class="lead-name">
-            <Icon v-if="lead.handled" name="lucide:check" class="lead-check" />
-            {{ lead.name }}
-          </span>
+          <span class="lead-name">{{ lead.name }}</span>
           <time class="lead-date">{{ formatDate(lead.created_at) }}</time>
         </div>
-        <a class="lead-email" :href="`mailto:${lead.email}`">{{ lead.email }}</a>
+        <div v-if="lead.category" class="lead-tags">
+          <span class="tag tag-category">{{ lead.category }}</span>
+          <span class="tag" :class="`tag-priority-${lead.priority}`">
+            {{ lead.priority }}
+          </span>
+        </div>
+        <a class="lead-email" :href="`mailto:${lead.email}`">{{
+          lead.email
+        }}</a>
         <p class="lead-message">{{ lead.message }}</p>
         <button class="toggle" @click="toggleHandled(lead.id, lead.handled)">
           {{ lead.handled ? "Mark as to-do" : "Mark as handled" }}
@@ -107,6 +159,10 @@ async function toggleHandled(id: number, current: boolean) {
 </template>
 
 <style scoped>
+:global(body) {
+  background: #f7f7f8;
+}
+
 .auth,
 .admin {
   max-width: 640px;
@@ -133,16 +189,27 @@ button {
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 6px;
-  background: #2563eb;
+  background: #4f46e5;
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+button:hover {
+  background: #4338ca;
 }
 
 button.ghost {
   background: transparent;
   color: #6b7280;
   border: 1px solid #d1d5db;
+}
+
+button.ghost:hover {
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .error {
@@ -153,11 +220,66 @@ button.ghost {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
 }
 
 .empty {
   color: #6b7280;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.3rem;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tab {
+  background: transparent;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+}
+
+.tab:hover {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.tab-active,
+.tab-active:hover {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.filter-selects {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-selects select {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
 }
 
 /* Spacing between cards. */
@@ -170,31 +292,19 @@ button.ghost {
   gap: 1.1rem;
 }
 
-/* Plain card, with consistent internal spacing (gap) so nothing looks
-   thrown together. */
+/* Card floats over the page background via shadow, not a hard border, for
+   a softer sense of depth while staying flat/minimal. */
 .lead {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1.1rem 1.3rem;
+  background: #ffffff;
+  border: 1px solid #f0f0f1;
+  border-radius: 10px;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 1px 3px rgba(16, 24, 40, 0.06);
+  padding: 1.15rem 1.35rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-}
-
-/* Handled leads recede slightly and get a green check before the name. */
-.lead.is-handled {
-  background: #fafafa;
-}
-
-.lead.is-handled .lead-name {
-  color: #6b7280;
-}
-
-.lead-check {
-  color: #16a34a;
-  font-size: 1.1em;
-  vertical-align: -0.15em;
-  margin-right: 0.25rem;
 }
 
 .lead-top {
@@ -214,8 +324,41 @@ button.ghost {
   white-space: nowrap;
 }
 
+.lead-tags {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tag {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.tag-category {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.tag-priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.tag-priority-medium {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.tag-priority-low {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .lead-email {
-  color: #2563eb;
+  color: #4f46e5;
   text-decoration: none;
   font-size: 0.9rem;
 }
@@ -233,10 +376,11 @@ button.ghost {
   padding: 0.4rem 0.85rem;
   font-size: 0.85rem;
   background: transparent;
-  color: #2563eb;
+  color: #4f46e5;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
 .toggle:hover {

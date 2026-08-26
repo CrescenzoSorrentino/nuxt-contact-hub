@@ -19,8 +19,16 @@ on its own as a demo.
   table, with an auto-generated `id` and `created_at` timestamp.
 - **Protected admin area** at `/admin` — single-password login, lists every
   lead (most recent first), with a one-click `mailto:` reply.
-- **Mark as handled** — toggle each lead's `handled` state from the admin, with
-  a subtle visual indicator.
+- **Mark as handled** — toggle each lead's `handled` state from the admin.
+- **New / Archived tabs, with category and priority filters** — the admin list
+  shows unhandled leads by default; a tab switches to the handled ones, and two
+  dropdowns narrow either view further by category and priority.
+- **AI-powered triage (optional)** — if an Anthropic API key is configured,
+  every new lead is automatically classified (`commercial` / `support` /
+  `spam` / `collaboration` / `other`, plus a `low`/`medium`/`high` priority)
+  using Claude, and the notification email is skipped for messages classified
+  as spam. Only the message text is sent to the API — never the name or
+  email. Off by default; see [Privacy note](#environment-variables) below.
 - **Optional email** — if Resend is configured the endpoint also emails you the
   message; if not, it simply saves the lead and skips email.
 - **Secrets via environment variables** — nothing sensitive is committed.
@@ -29,7 +37,8 @@ on its own as a demo.
 
 Nuxt 4 · Vue 3 `<script setup>` · TypeScript · Supabase (Postgres) ·
 [nuxt-auth-utils](https://github.com/atinux/nuxt-auth-utils) ·
-[@nuxt/icon](https://github.com/nuxt/icon) · Resend · Upstash Redis.
+[@nuxt/icon](https://github.com/nuxt/icon) · Resend · Upstash Redis ·
+[Anthropic API](https://docs.anthropic.com) · [Zod](https://zod.dev).
 
 ## How it works
 
@@ -37,11 +46,13 @@ Nuxt 4 · Vue 3 `<script setup>` · TypeScript · Supabase (Postgres) ·
 Public flow (anyone)
   app/components/ContactForm.vue     The form (UI + UX + validation).
   shared/contact-form.ts             Validation rules, shared client/server.
-  server/api/contact.post.ts         Validate -> save to DB -> (optional) email.
+  server/api/contact.post.ts         Validate -> triage (optional) -> save to DB -> email (optional, skipped for spam).
   server/utils/supabase.ts           The single Supabase connection helper.
+  server/utils/anthropic.ts          Optional Anthropic client (null if no API key configured).
+  server/utils/triage.ts             Classifies a lead's message into category + priority.
 
 Admin flow (protected)
-  app/pages/admin.vue                Login, leads list, mark-as-handled, logout.
+  app/pages/admin.vue                Login, filterable leads list, mark-as-handled, logout.
   server/api/admin/login.post.ts     Checks the admin password, opens a session.
   server/api/leads.get.ts            requireUserSession -> read the leads.
   server/api/leads/[id].patch.ts     requireUserSession -> update a lead's handled flag.
@@ -57,6 +68,8 @@ Copy this into your own Nuxt 4 app (it is not a published npm package).
    - `app/components/ContactForm.vue`
    - `app/pages/admin.vue`
    - `server/utils/supabase.ts`
+   - `server/utils/anthropic.ts`
+   - `server/utils/triage.ts`
    - `server/api/contact.post.ts`
    - `server/api/leads.get.ts`
    - `server/api/leads/[id].patch.ts`
@@ -65,7 +78,7 @@ Copy this into your own Nuxt 4 app (it is not a published npm package).
 2. **Install the dependencies:**
 
    ```bash
-   npm install @supabase/supabase-js nuxt-auth-utils @nuxt/icon resend @upstash/ratelimit @upstash/redis ws
+   npm install @supabase/supabase-js nuxt-auth-utils @nuxt/icon resend @upstash/ratelimit @upstash/redis ws @anthropic-ai/sdk zod
    npm install -D @iconify-json/lucide @types/ws
    ```
 
@@ -91,6 +104,7 @@ Copy this into your own Nuxt 4 app (it is not a published npm package).
      upstashRedisRestUrl: "",
      upstashRedisRestToken: "",
      contactSendConfirmation: false,
+     anthropicApiKey: "",
    },
    ```
 
@@ -104,10 +118,31 @@ Copy this into your own Nuxt 4 app (it is not a published npm package).
      name text not null,
      email text not null,
      message text not null,
-     handled boolean not null default false
+     handled boolean not null default false,
+     category text,
+     priority text,
+     constraint leads_category_check
+       check (category is null or category in ('commercial', 'support', 'spam', 'collaboration', 'other')),
+     constraint leads_priority_check
+       check (priority is null or priority in ('low', 'medium', 'high'))
    );
 
    alter table public.leads enable row level security;
+   ```
+
+   `category`/`priority` are nullable: they stay empty until the optional AI
+   triage feature is configured (see below), and empty forever if you don't
+   use it. If you already created the table before adding this feature, run
+   instead:
+
+   ```sql
+   alter table public.leads
+     add column category text,
+     add column priority text,
+     add constraint leads_category_check
+       check (category is null or category in ('commercial', 'support', 'spam', 'collaboration', 'other')),
+     add constraint leads_priority_check
+       check (priority is null or priority in ('low', 'medium', 'high'));
    ```
 
    Row Level Security is enabled with no policies: the table is reachable only
@@ -156,6 +191,7 @@ prefix lets Nuxt map them onto `runtimeConfig` automatically.
 | `NUXT_UPSTASH_REDIS_REST_URL`    | No       | Upstash Redis REST URL (rate limiting).                            |
 | `NUXT_UPSTASH_REDIS_REST_TOKEN`  | No       | Upstash Redis REST token (rate limiting).                          |
 | `NUXT_CONTACT_SEND_CONFIRMATION` | No       | Set to `true` to also email a confirmation to the visitor.         |
+| `NUXT_ANTHROPIC_API_KEY`         | No       | Anthropic API key. If empty, AI triage is skipped (`category`/`priority` stay `null`). |
 
 Generate a session password with:
 
@@ -170,10 +206,21 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 > **Rate limiting is optional and fails open.** If the Upstash variables are
 > missing or unreachable, submissions still go through.
 
+> **AI triage is optional and privacy-conscious.** When `NUXT_ANTHROPIC_API_KEY`
+> is empty, no request is ever made to Anthropic. When configured, only the
+> `message` field of the lead is sent for classification — never the name or
+> email. Sending a message's content to a third-party API is a data
+> processing activity: if you enable this on a site with real visitors,
+> update its privacy policy to disclose it, and use your own Anthropic API
+> key per deployment/client rather than sharing one across projects.
+
 ## Notes
 
 - On Node.js 20, `supabase-js` needs a WebSocket polyfill (provided via the
   `ws` package in `server/utils/supabase.ts`). Node.js 22+ does not need it.
+- `@anthropic-ai/sdk` prints an `EBADENGINE` warning on Node.js 20 (it
+  officially wants Node 22.11+/24.11+/26+) but has run correctly in testing
+  on Node 20 regardless.
 
 ## License
 

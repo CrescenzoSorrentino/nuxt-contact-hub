@@ -112,10 +112,14 @@ export default defineEventHandler(async (event) => {
   // "created_at" vengono compilati automaticamente dal database.
   const supabase = serverSupabase();
 
+  const triage = await triageLead(body.message);
+
   const { error: dbError } = await supabase.from("leads").insert({
     name: body.name,
     email: body.email,
     message: body.message,
+    category: triage?.category,
+    priority: triage?.priority,
   });
 
   if (dbError) {
@@ -127,6 +131,8 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  if (triage?.category === "spam") return { ok: true };
+
   // L'email è opzionale: se Resend non è configurato, basta aver salvato il
   // lead, quindi restituiamo successo senza provare a inviare nulla.
   if (!config.resendApiKey) {
@@ -134,7 +140,7 @@ export default defineEventHandler(async (event) => {
       ok: true,
     };
   }
-  
+
   // Invia l'email. Ogni valore fornito dall'utente viene sottoposto a escape
   // prima di essere inserito nel corpo HTML. "replyTo" è impostato
   // sull'indirizzo del visitatore così puoi rispondergli con un click.
