@@ -17,8 +17,9 @@ on its own as a demo.
   validation, honeypot, rate limiting, accessible UI).
 - **Persistence** — each submission is stored in a Supabase (Postgres) `leads`
   table, with an auto-generated `id` and `created_at` timestamp.
-- **Protected admin area** at `/admin` — single-password login, lists every
-  lead (most recent first), with a one-click `mailto:` reply.
+- **Protected admin area** at `/admin` — single-password login (rate-limited
+  against brute force), lists every lead (most recent first), with a
+  one-click `mailto:` reply.
 - **Mark as handled** — toggle each lead's `handled` state from the admin.
 - **New / Archived tabs, with category and priority filters** — the admin list
   shows unhandled leads by default; a tab switches to the handled ones, and two
@@ -28,7 +29,9 @@ on its own as a demo.
   `spam` / `collaboration` / `other`, plus a `low`/`medium`/`high` priority)
   using Claude, and the notification email is skipped for messages classified
   as spam. Only the message text is sent to the API — never the name or
-  email. Off by default; see [Privacy note](#environment-variables) below.
+  email. Best effort: if the Anthropic API errors or times out, the lead is
+  still saved, just without a category/priority. Off by default; see
+  [Privacy note](#environment-variables) below.
 - **Optional email** — if Resend is configured the endpoint also emails you the
   message; if not, it simply saves the lead and skips email.
 - **Secrets via environment variables** — nothing sensitive is committed.
@@ -53,7 +56,7 @@ Public flow (anyone)
 
 Admin flow (protected)
   app/pages/admin.vue                Login, filterable leads list, mark-as-handled, logout.
-  server/api/admin/login.post.ts     Checks the admin password, opens a session.
+  server/api/admin/login.post.ts     Rate limit -> checks the admin password -> opens a session.
   server/api/leads.get.ts            requireUserSession -> read the leads.
   server/api/leads/[id].patch.ts     requireUserSession -> update a lead's handled flag.
 ```
@@ -203,8 +206,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 > endpoint saves the lead to the database and returns successfully without
 > sending any email.
 
-> **Rate limiting is optional and fails open.** If the Upstash variables are
-> missing or unreachable, submissions still go through.
+> **Rate limiting is optional and fails open.** Both `/api/contact` (5
+> submissions/hour per IP) and `/api/admin/login` (5 attempts/hour per IP,
+> to slow down brute-forcing `NUXT_ADMIN_PASSWORD`) use the same Upstash
+> limiter. If the Upstash variables are missing or unreachable, both fail
+> open — requests go through unthrottled rather than being blocked.
 
 > **AI triage is optional and privacy-conscious.** When `NUXT_ANTHROPIC_API_KEY`
 > is empty, no request is ever made to Anthropic. When configured, only the

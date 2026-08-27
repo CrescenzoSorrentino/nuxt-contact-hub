@@ -111,8 +111,16 @@ export default defineEventHandler(async (event) => {
   // sempre memorizzato anche quando l'email è disattivata o fallisce. "id" e
   // "created_at" vengono compilati automaticamente dal database.
   const supabase = serverSupabase();
+  let triage = null;
 
-  const triage = await triageLead(body.message);
+  // Triage è "best effort": se l'API di Anthropic va in errore o in timeout,
+  // salviamo comunque il lead senza categoria/priorità invece di far fallire
+  // l'intera richiesta (stesso principio del rate limiting sopra).
+  try {
+    triage = await triageLead(body.message);
+  } catch (e) {
+    console.error("Triage failed (saving lead without classification):", e);
+  }
 
   const { error: dbError } = await supabase.from("leads").insert({
     name: body.name,
