@@ -32,6 +32,11 @@ on its own as a demo.
   email. Best effort: if the Anthropic API errors or times out, the lead is
   still saved, just without a category/priority. Off by default; see
   [Privacy note](#environment-variables) below.
+- **Reply from the admin** — write a real reply to a lead and send it, without
+  leaving the app. Requires Resend to be configured (same client used for
+  notifications); if it isn't, the endpoint fails loudly instead of
+  pretending to succeed, since here you explicitly asked for an email to go
+  out.
 - **Optional email** — if Resend is configured the endpoint also emails you the
   message; if not, it simply saves the lead and skips email.
 - **Secrets via environment variables** — nothing sensitive is committed.
@@ -55,10 +60,12 @@ Public flow (anyone)
   server/utils/triage.ts             Classifies a lead's message into category + priority.
 
 Admin flow (protected)
-  app/pages/admin.vue                Login, filterable leads list, mark-as-handled, logout.
+  app/pages/admin.vue                Login, filterable leads list, mark-as-handled, reply composer, logout.
   server/api/admin/login.post.ts     Rate limit -> checks the admin password -> opens a session.
   server/api/leads.get.ts            requireUserSession -> read the leads.
   server/api/leads/[id].patch.ts     requireUserSession -> update a lead's handled flag.
+  server/api/leads/[id]/reply.post.ts   requireUserSession -> fetch the lead's real email -> send a reply via Resend.
+  server/utils/html.ts               Shared escapeHtml() helper, used by both contact.post.ts and reply.post.ts.
 ```
 
 ## Installation
@@ -73,9 +80,11 @@ Copy this into your own Nuxt 4 app (it is not a published npm package).
    - `server/utils/supabase.ts`
    - `server/utils/anthropic.ts`
    - `server/utils/triage.ts`
+   - `server/utils/html.ts`
    - `server/api/contact.post.ts`
    - `server/api/leads.get.ts`
    - `server/api/leads/[id].patch.ts`
+   - `server/api/leads/[id]/reply.post.ts`
    - `server/api/admin/login.post.ts`
 
 2. **Install the dependencies:**
@@ -188,9 +197,9 @@ prefix lets Nuxt map them onto `runtimeConfig` automatically.
 | `NUXT_SUPABASE_SERVICE_ROLE_KEY` | Yes      | Supabase `service_role` key. **Secret, server-only.**             |
 | `NUXT_SESSION_PASSWORD`          | Yes      | Secret used to seal the admin session cookie (min 32 characters).  |
 | `NUXT_ADMIN_PASSWORD`            | Yes      | Password to log into `/admin`.                                     |
-| `NUXT_RESEND_API_KEY`            | No       | Resend API key. If empty, submissions are saved but no email sent. |
-| `NUXT_CONTACT_RECIPIENT_EMAIL`   | No       | Address that receives the messages (your inbox).                   |
-| `NUXT_CONTACT_FROM_EMAIL`        | No       | Sender address (e.g. `onboarding@resend.dev` for tests).           |
+| `NUXT_RESEND_API_KEY`            | No       | Resend API key. Powers both new-lead notifications and admin replies; if empty, notifications are skipped and the reply endpoint errors instead of sending. |
+| `NUXT_CONTACT_RECIPIENT_EMAIL`   | No       | Address that receives new-lead notifications (your inbox).         |
+| `NUXT_CONTACT_FROM_EMAIL`        | No       | Sender address for both notifications and admin replies. Must be on a domain you've verified in Resend (e.g. `onboarding@resend.dev` for tests, or `noreply@yourdomain.com` once verified) — an address on a domain you don't control (Gmail, iCloud, etc.) will be rejected. |
 | `NUXT_UPSTASH_REDIS_REST_URL`    | No       | Upstash Redis REST URL (rate limiting).                            |
 | `NUXT_UPSTASH_REDIS_REST_TOKEN`  | No       | Upstash Redis REST token (rate limiting).                          |
 | `NUXT_CONTACT_SEND_CONFIRMATION` | No       | Set to `true` to also email a confirmation to the visitor.         |
@@ -202,9 +211,12 @@ Generate a session password with:
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-> **Email is optional.** When `NUXT_RESEND_API_KEY` is empty, the contact
-> endpoint saves the lead to the database and returns successfully without
-> sending any email.
+> **Email is optional for new-lead notifications, but not for admin replies.**
+> When `NUXT_RESEND_API_KEY` is empty, the contact endpoint saves the lead and
+> returns successfully without sending any email. The reply endpoint behaves
+> differently on purpose: if you click "Send" in the admin, you're explicitly
+> asking for an email to go out, so a missing/misconfigured Resend setup
+> returns a real error instead of silently doing nothing.
 
 > **Rate limiting is optional and fails open.** Both `/api/contact` (5
 > submissions/hour per IP) and `/api/admin/login` (5 attempts/hour per IP,

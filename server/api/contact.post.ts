@@ -4,22 +4,6 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
 /**
- * Fa l'escape dei caratteri speciali HTML in una stringa, così l'input
- * dell'utente può essere inserito in sicurezza nel corpo HTML dell'email
- * (previene l'injection di HTML/markup).
- * La sostituzione di "&" deve girare per prima, altrimenti farebbe il doppio
- * escape delle entità prodotte dalle altre sostituzioni.
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/**
  * POST /api/contact
  *
  * Riceve l'invio del form di contatto e lo fa passare attraverso una serie di

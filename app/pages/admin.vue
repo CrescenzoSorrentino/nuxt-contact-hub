@@ -76,6 +76,28 @@ async function toggleHandled(id: number, current: boolean) {
   });
   await refreshLeads();
 }
+
+async function sendReply(id: number) {
+  await $fetch(`/api/leads/${id}/reply`, {
+    method: "POST",
+    body: { message: replyText.value },
+  });
+  cancelReply();
+}
+
+// Solo un lead alla volta può avere il composer di risposta aperto.
+const replyingId = ref<number | null>(null);
+const replyText = ref("");
+
+function openReply(id: number) {
+  replyingId.value = id;
+  replyText.value = "";
+}
+
+function cancelReply() {
+  replyingId.value = null;
+  replyText.value = "";
+}
 </script>
 
 <template>
@@ -150,9 +172,30 @@ async function toggleHandled(id: number, current: boolean) {
           lead.email
         }}</a>
         <p class="lead-message">{{ lead.message }}</p>
-        <button class="toggle" @click="toggleHandled(lead.id, lead.handled)">
-          {{ lead.handled ? "Mark as to-do" : "Mark as handled" }}
-        </button>
+
+        <div v-if="replyingId === lead.id" class="reply-box">
+          <textarea
+            v-model="replyText"
+            class="reply-textarea"
+            placeholder="Write your reply..."
+          ></textarea>
+          <div class="reply-actions">
+            <button class="ghost" @click="cancelReply">Cancel</button>
+            <button class="reply-ai">
+              {{ replyText.trim() ? "Improve with AI" : "Generate with AI" }}
+            </button>
+            <button class="reply-send" @click="sendReply(lead.id)">
+              Send
+            </button>
+          </div>
+        </div>
+
+        <div class="lead-actions">
+          <button class="ghost" @click="openReply(lead.id)">Reply</button>
+          <button class="toggle" @click="toggleHandled(lead.id, lead.handled)">
+            {{ lead.handled ? "Mark as to-do" : "Mark as handled" }}
+          </button>
+        </div>
       </li>
     </ul>
   </div>
@@ -370,9 +413,13 @@ button.ghost:hover {
   white-space: pre-wrap;
 }
 
-.toggle {
-  align-self: flex-end;
+.lead-actions {
+  display: flex;
+  justify-content: space-between;
   margin-top: 0.4rem;
+}
+
+.toggle {
   padding: 0.4rem 0.85rem;
   font-size: 0.85rem;
   background: transparent;
@@ -381,6 +428,46 @@ button.ghost:hover {
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.15s ease;
+}
+
+.reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #f0f0f1;
+}
+
+.reply-textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  min-height: 5rem;
+  resize: vertical;
+  color: #374151;
+}
+
+.reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.reply-ai {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.reply-ai:hover {
+  background: #e0e7ff;
+}
+
+.reply-send {
+  background: #4f46e5;
+  color: #fff;
 }
 
 .toggle:hover {
