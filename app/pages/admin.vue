@@ -85,6 +85,14 @@ async function sendReply(id: number) {
   cancelReply();
 }
 
+async function generateDraft(lead: { id: number; message: string }) {
+  const result = await $fetch(`/api/leads/${lead.id}/draft`, {
+    method: "POST",
+    body: { originalMessage: lead.message, draft: replyText.value },
+  });
+  replyText.value = result.draft;
+}
+
 // Solo un lead alla volta può avere il composer di risposta aperto.
 const replyingId = ref<number | null>(null);
 const replyText = ref("");
@@ -181,12 +189,10 @@ function cancelReply() {
           ></textarea>
           <div class="reply-actions">
             <button class="ghost" @click="cancelReply">Cancel</button>
-            <button class="reply-ai">
+            <button class="reply-ai" @click="generateDraft(lead)">
               {{ replyText.trim() ? "Improve with AI" : "Generate with AI" }}
             </button>
-            <button class="reply-send" @click="sendReply(lead.id)">
-              Send
-            </button>
+            <button class="reply-send" @click="sendReply(lead.id)">Send</button>
           </div>
         </div>
 
