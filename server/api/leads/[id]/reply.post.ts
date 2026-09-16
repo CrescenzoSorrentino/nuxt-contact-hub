@@ -6,6 +6,12 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, "id");
   const { message } = await readBody(event);
 
+  if (!message || message.trim() === "")
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Invalid message",
+    });
+
   const supabase = serverSupabase();
   const { data, error } = await supabase
     .from("leads")

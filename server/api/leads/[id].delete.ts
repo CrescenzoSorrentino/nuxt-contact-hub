@@ -2,18 +2,14 @@ export default defineEventHandler(async (event) => {
   await requireUserSession(event);
 
   const id = getRouterParam(event, "id");
-  const { handled, deleted_at } = await readBody(event);
   const supabase = serverSupabase();
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ handled, deleted_at })
-    .eq("id", id);
+  const { error } = await supabase.from("leads").delete().eq("id", id);
 
   if (error) {
     throw createError({
       statusCode: 500,
-      statusMessage: "Failed to update lead status",
+      statusMessage: "Failed to delete lead",
     });
   }
 

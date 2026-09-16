@@ -18,15 +18,31 @@ const { data: leads, refresh: refreshLeads } = await useFetch("/api/leads", {
   immediate: false,
 });
 
-const view = ref<"new" | "archived">("new");
+const view = ref<"new" | "archived" | "trash">("new");
 const categoryFilter = ref("all");
 const priorityFilter = ref("all");
+
+function matchesView(lead: { deleted_at: string | null; handled: boolean }) {
+  if (view.value === "trash") {
+    return lead.deleted_at !== null;
+  }
+
+  if (lead.deleted_at !== null) {
+    return false;
+  }
+
+  if (view.value === "new") {
+    return !lead.handled;
+  }
+
+  return lead.handled;
+}
 
 const filterLeads = computed(
   () =>
     leads.value?.filter(
       (lead) =>
-        (view.value === "new" ? !lead.handled : lead.handled) &&
+        matchesView(lead) &&
         (categoryFilter.value === "all" ||
           lead.category === categoryFilter.value) &&
         (priorityFilter.value === "all" ||
@@ -106,6 +122,27 @@ function cancelReply() {
   replyingId.value = null;
   replyText.value = "";
 }
+
+async function moveToTrash(id: number) {
+  await $fetch(`/api/leads/${id}`, {
+    method: "PATCH",
+    body: { deleted_at: new Date().toISOString() },
+  });
+  await refreshLeads();
+}
+
+async function restoreFromTrash(id: number) {
+  await $fetch(`/api/leads/${id}`, {
+    method: "PATCH",
+    body: { deleted_at: null },
+  });
+  await refreshLeads();
+}
+
+async function deleteNow(id: number) {
+  await $fetch(`/api/leads/${id}`, { method: "DELETE" });
+  await refreshLeads();
+}
 </script>
 
 <template>
@@ -139,6 +176,13 @@ function cancelReply() {
           @click="view = 'archived'"
         >
           Archived {{ leads?.filter((l) => l.handled).length ?? 0 }}
+        </button>
+        <button
+          class="tab"
+          :class="{ 'tab-active': view === 'trash' }"
+          @click="view = 'trash'"
+        >
+          Trash {{ leads?.filter((l) => l.deleted_at !== null).length ?? 0 }}
         </button>
       </div>
 
@@ -196,11 +240,27 @@ function cancelReply() {
           </div>
         </div>
 
-        <div class="lead-actions">
-          <button class="ghost" @click="openReply(lead.id)">Reply</button>
-          <button class="toggle" @click="toggleHandled(lead.id, lead.handled)">
-            {{ lead.handled ? "Mark as to-do" : "Mark as handled" }}
+        <div v-if="view === 'trash'" class="lead-actions">
+          <button class="ghost" @click="restoreFromTrash(lead.id)">
+            Restore
           </button>
+          <button class="danger" @click="deleteNow(lead.id)">
+            Delete now
+          </button>
+        </div>
+        <div v-else class="lead-actions">
+          <button class="delete-soft" @click="moveToTrash(lead.id)">
+            Delete
+          </button>
+          <div class="lead-actions-primary">
+            <button class="ghost" @click="openReply(lead.id)">Reply</button>
+            <button
+              class="toggle"
+              @click="toggleHandled(lead.id, lead.handled)"
+            >
+              {{ lead.handled ? "Mark as to-do" : "Mark as handled" }}
+            </button>
+          </div>
         </div>
       </li>
     </ul>
@@ -391,19 +451,22 @@ button.ghost:hover {
   color: #4338ca;
 }
 
-.tag-priority-high {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.tag-priority-medium {
-  background: #fef3c7;
-  color: #b45309;
-}
-
+/* Bassa/media/alta come una sola scala di intensità (neutro -> ambra ->
+   arancio scuro), non tre colori indipendenti — più satura e scura
+   man mano che la priorità sale. */
 .tag-priority-low {
   background: #f3f4f6;
   color: #6b7280;
+}
+
+.tag-priority-medium {
+  background: #fef9e7;
+  color: #b45309;
+}
+
+.tag-priority-high {
+  background: #fff3e8;
+  color: #c2410c;
 }
 
 .lead-email {
@@ -434,6 +497,45 @@ button.ghost:hover {
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.15s ease;
+}
+
+.danger {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.danger:hover {
+  background: #fef2f2;
+}
+
+.lead-actions-primary {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Più tenue di .danger: sposta nel cestino (recuperabile), non cancella
+   per sempre — un accenno di colore per distinguerlo dalle azioni
+   sicure, senza l'urgenza visiva riservata a "Delete now". */
+.delete-soft {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: #b91c1c;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.delete-soft:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
 .reply-box {

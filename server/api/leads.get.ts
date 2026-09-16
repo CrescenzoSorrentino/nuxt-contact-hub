@@ -11,6 +11,19 @@ export default defineEventHandler(async (event) => {
   await requireUserSession(event);
 
   const supabase = serverSupabase();
+  const thirtyDaysAgo = new Date(
+    Date.now() - 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { error: deleteError } = await supabase
+    .from("leads")
+    .delete()
+    .lt("deleted_at", thirtyDaysAgo);
+
+  if (deleteError) {
+    console.error("Trash cleanup failed (continuing anyway):", deleteError);
+  }
+
   const { data, error } = await supabase
     .from("leads")
     .select("*")

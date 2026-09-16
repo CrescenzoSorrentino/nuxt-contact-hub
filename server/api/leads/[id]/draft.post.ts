@@ -15,14 +15,19 @@ export default defineEventHandler(async (event) => {
 
   const userContent = draft ? messageWithDraft : originalMessage;
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5",
-    max_tokens: 1024,
-    system,
-    messages: [{ role: "user", content: userContent }],
-  });
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      system,
+      messages: [{ role: "user", content: userContent }],
+    });
 
-  const textBlock = response.content.find((block) => block.type === "text");
+    const textBlock = response.content.find((block) => block.type === "text");
 
-  return { draft: textBlock?.text ?? "Could not generate a reply." };
+    return { draft: textBlock?.text ?? "Could not generate a reply." };
+  } catch (e) {
+    console.error("AI draft generation failed:", e);
+    throw createError({ statusCode: 500, statusMessage: "AI generation failed" });
+  }
 });
