@@ -75,6 +75,15 @@ async function login() {
   }
 }
 
+function daysUntilDeletion(deletedAt: string) {
+  const now = Date.now();
+  const msElapsed = now - new Date(deletedAt).getTime();
+  const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
+  const daysRemaining = Math.ceil(30 - daysElapsed);
+
+  return daysRemaining;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
     day: "2-digit",
@@ -212,7 +221,10 @@ async function deleteNow(id: number) {
       <li v-for="lead in filterLeads" :key="lead.id" class="lead">
         <div class="lead-top">
           <span class="lead-name">{{ lead.name }}</span>
-          <time class="lead-date">{{ formatDate(lead.created_at) }}</time>
+          <span v-if="view === 'trash'" class="days-left">
+            {{ daysUntilDeletion(lead.deleted_at!) }} days left
+          </span>
+          <time v-else class="lead-date">{{ formatDate(lead.created_at) }}</time>
         </div>
         <div v-if="lead.category" class="lead-tags">
           <span class="tag tag-category">{{ lead.category }}</span>
@@ -244,9 +256,7 @@ async function deleteNow(id: number) {
           <button class="ghost" @click="restoreFromTrash(lead.id)">
             Restore
           </button>
-          <button class="danger" @click="deleteNow(lead.id)">
-            Delete now
-          </button>
+          <button class="danger" @click="deleteNow(lead.id)">Delete now</button>
         </div>
         <div v-else class="lead-actions">
           <button class="delete-soft" @click="moveToTrash(lead.id)">
@@ -430,6 +440,13 @@ button.ghost:hover {
 .lead-date {
   color: #9ca3af;
   font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.days-left {
+  color: #b45309;
+  font-size: 0.85rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
