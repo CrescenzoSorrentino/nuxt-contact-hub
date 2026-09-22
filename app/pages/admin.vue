@@ -121,6 +121,9 @@ async function generateDraft(lead: { id: number; message: string }) {
 // Solo un lead alla volta può avere il composer di risposta aperto.
 const replyingId = ref<number | null>(null);
 const replyText = ref("");
+const pendingDeleteId = ref<number | null>(null);
+const pendingDeleteSeconds = ref(10);
+let timer: ReturnType<typeof setInterval> | undefined = undefined;
 
 function openReply(id: number) {
   replyingId.value = id;
@@ -151,6 +154,26 @@ async function restoreFromTrash(id: number) {
 async function deleteNow(id: number) {
   await $fetch(`/api/leads/${id}`, { method: "DELETE" });
   await refreshLeads();
+}
+
+function startDeleteCountdown(id: number) {
+  if (pendingDeleteId.value !== null) return;
+
+  pendingDeleteId.value = id;
+  pendingDeleteSeconds.value = 10;
+  timer = setInterval(() => {
+    pendingDeleteSeconds.value--;
+    if (pendingDeleteSeconds.value <= 0) {
+      clearInterval(timer);
+      deleteNow(id);
+      pendingDeleteId.value = null;
+    }
+  }, 1000);
+}
+
+function cancelDeleteCountdown() {
+  clearInterval(timer);
+  pendingDeleteId.value = null;
 }
 </script>
 
@@ -224,7 +247,9 @@ async function deleteNow(id: number) {
           <span v-if="view === 'trash'" class="days-left">
             {{ daysUntilDeletion(lead.deleted_at!) }} days left
           </span>
-          <time v-else class="lead-date">{{ formatDate(lead.created_at) }}</time>
+          <time v-else class="lead-date">{{
+            formatDate(lead.created_at)
+          }}</time>
         </div>
         <div v-if="lead.category" class="lead-tags">
           <span class="tag tag-category">{{ lead.category }}</span>
@@ -256,7 +281,9 @@ async function deleteNow(id: number) {
           <button class="ghost" @click="restoreFromTrash(lead.id)">
             Restore
           </button>
-          <button class="danger" @click="deleteNow(lead.id)">Delete now</button>
+          <button class="danger" @click="startDeleteCountdown(lead.id)">
+            Delete now
+          </button>
         </div>
         <div v-else class="lead-actions">
           <button class="delete-soft" @click="moveToTrash(lead.id)">
@@ -274,6 +301,16 @@ async function deleteNow(id: number) {
         </div>
       </li>
     </ul>
+
+    <div v-if="pendingDeleteId !== null" class="delete-banner">
+      <span class="delete-banner-text">
+        Deleting in
+        <span class="delete-countdown-seconds"
+          >{{ pendingDeleteSeconds }}s</span
+        >
+      </span>
+      <button class="ghost" @click="cancelDeleteCountdown()">Cancel</button>
+    </div>
   </div>
 </template>
 
@@ -529,6 +566,41 @@ button.ghost:hover {
 
 .danger:hover {
   background: #fef2f2;
+}
+
+.delete-countdown-seconds {
+  min-width: 1.75rem;
+  display: inline-block;
+  text-align: right;
+  font-weight: 700;
+  color: #dc2626;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fisso in basso a destra, sempre visibile indipendentemente dalla scheda
+   attiva (New/Archived/Trash): un countdown avviato non deve mai sparire
+   dalla vista solo perché l'admin cambia tab. */
+.delete-banner {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #ffffff;
+  border: 1px solid #f0f0f1;
+  border-radius: 10px;
+  box-shadow:
+    0 4px 12px rgba(16, 24, 40, 0.12),
+    0 2px 4px rgba(16, 24, 40, 0.08);
+  padding: 0.85rem 1.1rem;
+  font-size: 0.9rem;
+  color: #374151;
+  z-index: 50;
+}
+
+.delete-banner-text {
+  white-space: nowrap;
 }
 
 .lead-actions-primary {
